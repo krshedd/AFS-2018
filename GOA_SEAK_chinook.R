@@ -15,6 +15,7 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 setwd("V:/Presentations/Science/AFS/AFS-Western-Anchorage-2018/Shedd SEAK Chinook/")
+source("C:/Users/krshedd/Documents/r/Functions.GCL.R")
 
 library(tidyverse)
 
@@ -128,24 +129,7 @@ avg_harvest_wide <- avg_harvest_tidy %>%
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## All State Harvest + Bycatch
-harvest_tidy <- bind_rows(comm_harvest_tidy, subs_harvest_tidy, sport_harvest_tidy) %>% 
-  add_row(Year = 2014:2016, Area = "GOA", Harvest = c(15751, 18969, 22080), Fishery = "Bycatch") %>%  # from NOAA website <https://alaskafisheries.noaa.gov/fisheries-catch-landings?tid=286>
-  add_row(Year = 2014:2016, Area = "BSAI", Harvest = c(18098, 25254, 32561), Fishery = "Bycatch") %>%  # from NOAA website <https://alaskafisheries.noaa.gov/fisheries-catch-landings?tid=286>
-  replace_na(list(Harvest = 0L)) %>% 
-  mutate(Fishery = factor(x = Fishery, levels = c("Subsistence", "Commercial", "Sport", "Bycatch")))
-
-avg_harvest_tidy <- harvest_tidy %>% 
-  group_by(Fishery, Area) %>% 
-  summarise(Harvest = mean(Harvest)) %>% 
-  ungroup()
-
-avg_harvest_tidy %>% 
-  ggplot(aes(x = Area, y = Harvest, fill = Fishery)) +
-  geom_col() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-## Need to combine Chignik + AK Pen/Aleutian Islands and Norton Sound + Kotzebue
+# Need to combine Chignik + AK Pen/Aleutian Islands and Norton Sound + Kotzebue
 level_key = list(Southeast = "Southeast",
                  `Prince William Sound` = "Prince William Sound",
                  `Cook Inlet` = "Cook Inlet",
@@ -160,12 +144,30 @@ level_key = list(Southeast = "Southeast",
                  GOA = "GOA",
                  BSAI = "BSAI")
 
-# Summarize over new groups, make wide for plotting
-avg_harvest_wide <- avg_harvest_tidy %>% 
+harvest_tidy <- bind_rows(comm_harvest_tidy, subs_harvest_tidy, sport_harvest_tidy) %>% 
+  add_row(Year = 2014:2016, Area = "GOA", Harvest = c(15751, 18969, 22080), Fishery = "Bycatch") %>%  # from NOAA website <https://alaskafisheries.noaa.gov/fisheries-catch-landings?tid=286>
+  add_row(Year = 2014:2016, Area = "BSAI", Harvest = c(18098, 25254, 32561), Fishery = "Bycatch") %>%  # from NOAA website <https://alaskafisheries.noaa.gov/fisheries-catch-landings?tid=286>
+  replace_na(list(Harvest = 0L)) %>% 
+  mutate(Fishery = factor(x = Fishery, levels = c("Subsistence", "Commercial", "Sport", "Bycatch"))) %>% 
   mutate(Area = recode(Area, !!!level_key)) %>% 
+  group_by(Year, Fishery, Area) %>% 
+  summarise(Harvest = sum(Harvest, na.rm = TRUE)) %>% 
+  ungroup()
+
+avg_harvest_tidy <- harvest_tidy %>% 
   group_by(Fishery, Area) %>% 
-  summarise(Harvest = sum(Harvest)) %>% 
-  ungroup() %>% 
+  summarise(Harvest = mean(Harvest)) %>% 
+  ungroup()
+
+avg_harvest_tidy %>% 
+  ggplot(aes(x = Area, y = Harvest, fill = Fishery)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Make Wide
+
+avg_harvest_wide <- avg_harvest_tidy %>% 
   spread(Fishery, Harvest)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -270,7 +272,504 @@ dev.off()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 source("C:/Users/krshedd/Documents/r/Functions.GCL.R")
 
-# SEAK
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## SEAK
+
+#~~~~~~~~~~~~~~~~~~
 # Troll
-dget(file = "V:/Analysis/1_SEAK/Chinook/Mixture/SEAK15/Estimates objects/AllYearTroll2009_2015_8RG_StratifiedEstimatesStats.txt")
-dget(file = "V:/Analysis/1_SEAK/Chinook/Mixture/SEAK16/Estimates objects/AllYearTroll2016_8RG_StratifiedEstimatesStats.txt")
+troll_mat <- c(dget(file = "V:/Analysis/1_SEAK/Chinook/Mixture/SEAK15/Estimates objects/AllYearTroll2009_2015_8RG_StratifiedEstimatesStats.txt")[as.character(2014:2015)], 
+               list("2016" = dget(file = "V:/Analysis/1_SEAK/Chinook/Mixture/SEAK16/Estimates objects/AllYearTroll2016_8RG_StratifiedEstimatesStats.txt")))
+
+# Make dataframe
+troll_df <- bind_rows(
+  lapply(troll_mat, function(mix) {
+  tmp <- as.data.frame(mix)
+  tmp$RG <- rownames(mix)
+  tmp} )
+, .id = "item")
+
+# Make tidy
+troll_tidy <- troll_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "SEAK/TBR") %>% 
+  mutate(area = "Southeast") %>% 
+  mutate(fishery = "Commercial") %>% 
+  mutate(gear = "Troll") %>% 
+  mutate(harvest_type = "Traditional")
+
+
+#~~~~~~~~~~~~~~~~~~
+# Sport
+sport_mat <- dget(file = "V:/Analysis/1_SEAK/Chinook/Mixture/SEAK16/Estimates objects/AllYearSport2009_2016_8RG_StratifiedEstimatesStats.txt")[as.character(2014:2016)]
+
+# Make dataframe
+sport_df <- bind_rows(
+  lapply(sport_mat, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+
+# Make tidy
+sport_tidy <- sport_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "SEAK/TBR") %>% 
+  mutate(area = "Southeast") %>% 
+  mutate(fishery = "Sport") %>% 
+  mutate(gear = NA) %>% 
+  mutate(harvest_type = NA)
+
+
+#~~~~~~~~~~~~~~~~~~
+# Terminal
+# Make dataframe
+terminal_tidy <- tibble(year = 2014:2016,
+                        rho = 1,
+                        RG = "SEAK/TBR",
+                        area = "Southeast",
+                        fishery = "Commercial",
+                        gear = NA,
+                        harvest_type = "Terminal")
+
+
+#~~~~~~~~~~~~~~~~~~
+# D8&11 Drift
+# Hand enter to save time, visually examined and harvest is almost certainly 100% SEAK origin
+drift_tidy <- tibble(year = 2014:2016,
+                     rho = 1,
+                     RG = "SEAK/TBR",
+                     area = "Southeast",
+                     fishery = "Commercial",
+                     gear = "Drift",
+                     harvest_type = "Traditional")
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Copper River gillnet
+cr_mat <- dget("V:/Analysis/2_Central/Chinook/Copper River/Mixtures/CopperMixtures 2016-2017/Estimates objects/Annual2013_2017_8RG_StratifiedEstimatesStats.txt")[as.character(2014:2016)]
+
+# Make dataframe
+cr_df <- bind_rows(
+  lapply(cr_mat, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+
+# Make tidy
+cr_tidy <- cr_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG %in% c("NEGulfAK", "CoastalSEAK")) %>% 
+  group_by(year) %>% 
+  summarise(rho = sum(rho)) %>% 
+  mutate(RG = "SEAK/TBR") %>% 
+  mutate(area = "Prince William Sound") %>% 
+  mutate(fishery = "Commercial") %>% 
+  mutate(gear = "Drift") %>% 
+  mutate(harvest_type = "Traditional")
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Lower Cook Inlet sport
+setwd("V:/Analysis/4_Westward/Chinook/CSRI Westward Commercial Harvest 2014-2016/Mixtures/Objects/")
+groups10 <- dget(file = "groups10.txt")
+groupvec10 <- dget(file = "groupvec10.txt")
+
+#~~~~~~~~
+setwd("V:/Analysis/2_Central/Chinook/Lower Cook Inlet/2016/Mixture/Sport Harvest 2014to2016")
+
+catchvec14<-c(554,985,6119,3173)
+names(catchvec14)<-paste0(c("E","L","S","W"),14)
+catchvec15<-c(2658,1528,9796,5137)
+names(catchvec15)<-paste0(c("E","L","S","W"),15)
+catchvec16 <- colMeans(rbind(catchvec14 / sum(catchvec14), catchvec15 / sum(catchvec15))) * (mean(c(sum(catchvec14) / 11989, sum(catchvec15) / 19515)) * 20005)  # average catchvec dist from 2014-2015 times the average % of Cook Inlet saltwater (PS) Chinook harvest from SWHS that was in catchvec
+
+LCI_2014 <- CustomCombineBAYESOutput.GCL(groupvec = groupvec10, groupnames = groups10, maindir = "BAYES/Output/", mixvec = c("E14", "L16", "S14", "W14"), ext = "BOT", nchains = 4, burn = 0.5, alpha = 0.1, threshhold = 5e-7, PosteriorOutput = FALSE)
+LCI_2014_df <- bind_rows(
+  lapply(LCI_2014, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+LCI_2014_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "Southeast Alaska / Northeast Gulf of Alaska")
+
+LCI_2015 <- CustomCombineBAYESOutput.GCL(groupvec = groupvec10, groupnames = groups10, maindir = "BAYES/Output/", mixvec = c("E15", "L16", "S15", "W15"), ext = "BOT", nchains = 4, burn = 0.5, alpha = 0.1, threshhold = 5e-7, PosteriorOutput = FALSE)
+LCI_2015_df <- bind_rows(
+  lapply(LCI_2015, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+LCI_2015_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "Southeast Alaska / Northeast Gulf of Alaska")
+
+LCI_2016 <- CustomCombineBAYESOutput.GCL(groupvec = groupvec10, groupnames = groups10, maindir = "BAYES/Output/", mixvec = c("E16", "L16", "S16", "W16"), ext = "BOT", nchains = 4, burn = 0.5, alpha = 0.1, threshhold = 5e-7, PosteriorOutput = FALSE)
+LCI_2016_df <- bind_rows(
+  lapply(LCI_2016, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+LCI_2016_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "Southeast Alaska / Northeast Gulf of Alaska")
+
+
+Overall2014=StratifiedEstimator.GCL(groupvec=groupvec10, groupnames=groups10, maindir="BAYES/Output", mixvec=c("E14","L16","S14","W14"), catchvec=catchvec14, CVvec=rep(0,length(catchvec14)), newname="Overall14", priorname="", ext="BOT", nchains=4, burn=0.5, alpha=0.1, threshold=5e-7, xlxs=FALSE)
+Overall2015=StratifiedEstimator.GCL(groupvec=groupvec10, groupnames=groups10, maindir="BAYES/Output", mixvec=c("E15","L16","S15","W15"), catchvec=catchvec15, CVvec=rep(0,length(catchvec15)), newname="Overall15", priorname="", ext="BOT", nchains=4, burn=0.5, alpha=0.1, threshold=5e-7, xlxs=FALSE)
+Overall2016=StratifiedEstimator.GCL(groupvec=groupvec10, groupnames=groups10, maindir="BAYES/Output", mixvec=c("E16","L16","S16","W16"), catchvec=catchvec16, CVvec=rep(0,length(catchvec16)), newname="Overall16", priorname="", ext="BOT", nchains=4, burn=0.5, alpha=0.1, threshold=5e-7, xlxs=FALSE)
+
+# Make dataframe
+LCI_df <- bind_rows(
+  lapply(list("2014" = Overall2014, "2015" = Overall2015, "2016" = Overall2016), function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+
+# Make tidy
+LCI_tidy <- LCI_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "Southeast Alaska / Northeast Gulf of Alaska") %>% 
+  mutate(RG = "SEAK/TBR") %>% 
+  mutate(area = "Cook Inlet") %>% 
+  mutate(fishery = "Sport") %>% 
+  mutate(gear = NA) %>% 
+  mutate(harvest_type = NA)
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Kodiak commercial
+kod_comm_mat <- list("2014" = dget("V:/Analysis/4_Westward/Chinook/CSRI Westward Commercial Harvest 2014-2016/Mixtures/Estimates objects/Final/KMA2014_Annual_Stratified_EstimatesStats.txt"),
+                "2015" = dget("V:/Analysis/4_Westward/Chinook/CSRI Westward Commercial Harvest 2014-2016/Mixtures/Estimates objects/Final/KMA2015_Annual_Stratified_EstimatesStats.txt"),
+                "2016" = dget("V:/Analysis/4_Westward/Chinook/CSRI Westward Commercial Harvest 2014-2016/Mixtures/Estimates objects/Final/KMA2016_Annual_Stratified_EstimatesStats.txt"))
+
+# Make dataframe
+kod_comm_df <- bind_rows(
+  lapply(kod_comm_mat, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+
+# Make tidy
+kod_comm_tidy <- kod_comm_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "Southeast Alaska / Northeast Gulf of Alaska") %>% 
+  group_by(year) %>% 
+  summarise(rho = sum(rho)) %>% 
+  mutate(RG = "SEAK/TBR") %>% 
+  mutate(area = "Kodiak") %>% 
+  mutate(fishery = "Commercial") %>% 
+  mutate(gear = "Seine") %>% 
+  mutate(harvest_type = "Traditional")
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Kodiak sport
+kod_sport_mat <- c(dget("V:/Analysis/4_Westward/Chinook/CSRI Westward Sport Harvest 2014-2016/Mixtures/Estimates objects/KMARS14_EstimatesStats.txt"),
+                   dget("V:/Analysis/4_Westward/Chinook/CSRI Westward Sport Harvest 2014-2016/Mixtures/Estimates objects/KMARS15_EstimatesStats.txt"),
+                   dget("V:/Analysis/4_Westward/Chinook/CSRI Westward Sport Harvest 2014-2016/Mixtures/Estimates objects/KMARS16_EstimatesStats.txt"))
+names(kod_sport_mat) <- 2014:2016
+
+# Make dataframe
+kod_sport_df <- bind_rows(
+  lapply(kod_sport_mat, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+
+# Make tidy
+kod_sport_tidy <- kod_sport_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "Southeast Alaska / Northeast Gulf of Alaska") %>% 
+  group_by(year) %>% 
+  summarise(rho = sum(rho)) %>% 
+  mutate(RG = "SEAK/TBR") %>% 
+  mutate(area = "Kodiak") %>% 
+  mutate(fishery = "Sport") %>% 
+  mutate(gear = NA) %>% 
+  mutate(harvest_type = NA)
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## South Pen Chignik
+sakpen_mat <- dget("V:/Analysis/4_Westward/Chinook/CSRI Westward Commercial Harvest 2014-2016/Mixtures/Estimates objects/Final/KSPENCHIG2014_EstimatesStats.txt")
+names(sakpen_mat) <- 2014
+
+# Make dataframe
+sakpen_df <- bind_rows(
+  lapply(sakpen_mat, function(mix) {
+    tmp <- as.data.frame(mix)
+    tmp$RG <- rownames(mix)
+    tmp} )
+  , .id = "item")
+
+# Make tidy
+sakpen_tidy <- sakpen_df %>% 
+  rename(year = item, rho = mean) %>% 
+  select(year, rho, RG) %>% 
+  filter(RG == "Southeast Alaska / Northeast Gulf of Alaska") %>% 
+  group_by(year) %>% 
+  summarise(rho = sum(rho)) %>% 
+  mutate(RG = "SEAK/TBR") %>% 
+  mutate(area = "AK Pen") %>% 
+  mutate(fishery = "Commercial") %>% 
+  mutate(gear = NA) %>% 
+  mutate(harvest_type = NA)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## GOA Pollock
+# All GOA Pollock from Chuck's NOAA reports
+goa_tidy <- tibble(year = 2014:2016,
+                   rho = c(0.010 + 0.179, 0.002 + 0.136, 0.020 + 0.150),
+                   RG = "SEAK/TBR",
+                   area = "GOA",
+                   fishery = "Bycatch",
+                   gear = NA,
+                   harvest_type = NA)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## BSAI Pollock
+# All BSAI Pollock from Chuck's NOAA reports
+bsai_tidy <- tibble(year = 2014:2016,
+                    rho = c(0.000 + 0.014, 0.000 + 0.045, 0.000 + 0.044),
+                    RG = "SEAK/TBR",
+                    area = "BSAI",
+                    fishery = "Bycatch",
+                    gear = NA,
+                    harvest_type = NA)
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Bind all stock comp data
+rho_tidy <- as.tibble(
+  rbind(troll_tidy,
+        sport_tidy,
+        terminal_tidy,
+        drift_tidy,
+        cr_tidy,
+        LCI_tidy,
+        kod_comm_tidy,
+        kod_sport_tidy,
+        sakpen_tidy,
+        goa_tidy,
+        bsai_tidy))
+
+rho_tidy <- rho_tidy %>% 
+  mutate(year = as.integer(year)) %>% 
+  mutate(fishery = factor(x = fishery, levels = levels(harvest_tidy$Fishery))) %>% 
+  mutate(area = factor(x = area, levels = levels(harvest_tidy$Area)))
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#### Harvest for Stock Comp ####
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## SEAK
+# Assume all SEAK terminal is SEAK, regardless of gear class
+# Multiply troll stock comp by the spring troll + traditional harvest (not terminal)
+# So I'm assuming we have NO information on non-terminal drift, purse, set
+seak_comm_harvest <- read_csv(file = "data/harvest/comm/CE002636.csv", skip = 22)
+
+
+# Assume Terminal is 100% SEAK
+terminal_h_tidy <- seak_comm_harvest %>% 
+  rename(harvest_type = Harvest) %>% 
+  rename(year = Year) %>% 
+  group_by(year, harvest_type) %>% 
+  summarise(harvest = sum(`N Catch`, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  filter(harvest_type == "TERM") %>% 
+  mutate(harvest_type = recode(harvest_type, TERM = "Terminal")) %>% 
+  mutate(fishery = "Commercial") %>% 
+  mutate(area = "Southeast") %>% 
+  mutate(gear = NA)
+
+# Non-terminal Troll harvest to multiply by Annual troll stock comp
+troll_h_tidy <- seak_comm_harvest %>% 
+  rename(harvest_type = Harvest) %>% 
+  rename(year = Year) %>% 
+  rename(gear = `Gear Class`) %>% 
+  filter(gear == "TROLL", harvest_type != "TERM") %>% 
+  mutate(gear = recode(gear, TROLL = "Troll")) %>% 
+  group_by(year, gear) %>% 
+  summarise(harvest = sum(`N Catch`, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  mutate(fishery = "Commercial") %>% 
+  mutate(area = "Southeast") %>% 
+  mutate(harvest_type = "Traditional")
+  
+# TBR D8&11 Gillnet through SW 29
+drift_h_tidy <- seak_comm_harvest %>% 
+  rename(harvest_type = Harvest) %>% 
+  rename(year = Year) %>% 
+  rename(gear = `Gear Class`) %>% 
+  filter(gear == "DRIFT", harvest_type == "TRAD", `Time Value` <= 29, `Area Value`%in% c(108, 111)) %>% 
+  mutate(gear = recode(gear, DRIFT = "Drift")) %>% 
+  group_by(year, gear) %>% 
+  summarise(harvest = sum(`N Catch`, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  mutate(fishery = "Commercial") %>% 
+  mutate(area = "Southeast") %>% 
+  mutate(harvest_type = "Traditional")
+
+# Sport
+sport_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = NA,
+  harvest = unlist(sport_harvest_tidy %>% filter(Area == "Southeast") %>% select(Harvest)),
+  fishery = "Sport",
+  area = "Southeast",
+  harvest_type = NA
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Copper River gillnet
+# From Copper River script
+catchvec_2014 <- c(1264, 851, 1470, 1210, 1182, 1283, 1281, 822)
+catchvec_2015 <- c(1517, 2959, 2460, 3002, 1932, 1882, 1523, 872, 2219, 980)
+catchvec_2016 <- c(1367, 1968, 2912, 1116, 988, 904, 624, 303)
+
+cr_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = "Drift",
+  harvest = c(sum(catchvec_2014), sum(catchvec_2015), sum(catchvec_2016)),
+  fishery = "Commercial",
+  area = "Prince William Sound",
+  harvest_type = "Traditiional"
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Lower Cook Inlet sport
+# From Andy's LCI script
+catchvec14<-c(554,985,6119,3173)
+names(catchvec14)<-paste0(c("E","L","S","W"),14)
+catchvec15<-c(2658,1528,9796,5137)
+names(catchvec15)<-paste0(c("E","L","S","W"),15)
+catchvec16 <- colMeans(rbind(catchvec14 / sum(catchvec14), catchvec15 / sum(catchvec15))) * (mean(c(sum(catchvec14) / 11989, sum(catchvec15) / 19515)) * 20005)  # average catchvec dist from 2014-2015 times the average % of Cook Inlet saltwater (PS) Chinook harvest from SWHS that was in catchvec
+
+LCI_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = NA,
+  harvest = c(sum(catchvec14), sum(catchvec15), sum(catchvec16)),
+  fishery = "Sport",
+  area = "Cook Inlet",
+  harvest_type = NA
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Kodiak commercial
+# From KMA comm report
+kod_comm_harvest <- setNames(c(6867, 7447, 6791), nm = 2014:2016)
+
+kod_comm_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = "Seine",
+  harvest = kod_comm_harvest,
+  fishery = "Commercial",
+  area = "Kodiak",
+  harvest_type = "Traditiional"
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Kodiak sport
+# From KMA sport report + SWHS (salt water only)
+kod_sport_harvest <- setNames(c(8049, 6709, 9499), nm = 2014:2016)
+
+kod_sport_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = NA,
+  harvest = kod_sport_harvest,
+  fishery = "Sport",
+  area = "Kodiak",
+  harvest_type = NA
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## South Pen Chignik
+setNames(object = 12209, nm = 2014)
+harvest_tidy %>% 
+  filter(Area == "AK Pen" & Fishery == "Commercial") %>% 
+  group_by(Year) %>% 
+  summarise(Harvest = sum(Harvest))
+
+sakpen_h_tidy <- tibble(
+  year = 2014L,
+  gear = NA,
+  harvest = 12209,
+  fishery = "Sport",
+  area = "AK Pen",
+  harvest_type = NA
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## GOA Pollock
+goa_pollock_harvest <- setNames(c(10883, 13612, 20882), nm = 2014:2016)
+
+goa_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = NA,
+  harvest = goa_pollock_harvest,
+  fishery = "Bycatch",
+  area = "GOA",
+  harvest_type = NA
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## BSAI Pollock
+bsai_pollock_harvest <- setNames(c(15031, 18329, 21926), nm = 2014:2016)
+
+bsai_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = NA,
+  harvest = bsai_pollock_harvest,
+  fishery = "Bycatch",
+  area = "BSAI",
+  harvest_type = NA
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Join with harvest tidy
+rho_h_tidy <- bind_rows(
+  troll_h_tidy,
+  sport_h_tidy,
+  terminal_h_tidy,
+  drift_h_tidy,
+  cr_h_tidy,
+  LCI_h_tidy,
+  kod_comm_h_tidy,
+  kod_sport_h_tidy,
+  sakpen_h_tidy,
+  goa_h_tidy,
+  bsai_h_tidy
+)
+
+
+rho_h_join <- rho_h_tidy %>% 
+  mutate(fishery = factor(x = fishery, levels = levels(harvest_tidy$Fishery))) %>% 
+  mutate(area = factor(x = area, levels = levels(harvest_tidy$Area))) %>% 
+  left_join(rho_tidy)
+
+
+rho_h_join %>% 
+  filter(area != "AK Pen") %>% 
+  group_by(year, fishery, area) %>% 
+  summarise(harvest = sum(harvest)) %>% 
+  group_by(fishery, area) %>% 
+  summarize(avg_harvest = mean(harvest)) %>% 
+  ungroup() %>% 
+  rename(Fishery = fishery, Area = area) %>% 
+  right_join(avg_harvest_tidy, by = c())
