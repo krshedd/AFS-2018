@@ -185,6 +185,8 @@ while(!require(plotly)) {install.packages("plotly")}
 while(!require(PBSmapping)) {install.packages("PBSmapping")}
 while(!require(devEMF)) {install.packages("devEMF")}
 
+par(bg = "black", col.lab = "white")
+
 
 setwd("V:/Analysis/1_SEAK/Sockeye/Mixture/Harvest Data")
 
@@ -224,7 +226,7 @@ write_csv(x = chinookharvest, path = "data/chinookharvest.csv")
 dir.create("figures")
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-png(filename = "figures/harvest_map.png", width = 8.5, height = 6.2, units = "in", res = 300)
+png(filename = "figures/2_harvest_map.png", width = 8.5, height = 6.2, units = "in", res = 300)
 
 plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
 addLines(polys = rivers, col = "grey80", lwd = 2)
@@ -249,7 +251,7 @@ add.pie(z = as.numeric(chinookharvest[9, 2:5]), x = -165, y = 64, radius = sqrt(
 add.pie(z = as.numeric(chinookharvest[10, 2:5]), x = -149, y = 55, radius = sqrt(as.numeric(chinookharvest[10, 6]/max(chinookharvest[, 6]))) * max.rad, labels = NA, col = pie.colors)
 add.pie(z = as.numeric(chinookharvest[11, 2:5]), x = -168, y = 57, radius = sqrt(as.numeric(chinookharvest[11, 6]/max(chinookharvest[, 6]))) * max.rad, labels = NA, col = pie.colors)
 
-legend("topright", legend = levels(avg_harvest_tidy$Fishery), fill = pie.colors, cex = 2)
+legend("topright", legend = levels(avg_harvest_tidy$Fishery), fill = pie.colors, cex = 1.8)
 
 dev.off()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -649,7 +651,7 @@ cr_h_tidy <- tibble(
   harvest = c(sum(catchvec_2014), sum(catchvec_2015), sum(catchvec_2016)),
   fishery = "Commercial",
   area = "Prince William Sound",
-  harvest_type = "Traditiional"
+  harvest_type = "Traditional"
 )
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -681,7 +683,7 @@ kod_comm_h_tidy <- tibble(
   harvest = kod_comm_harvest,
   fishery = "Commercial",
   area = "Kodiak",
-  harvest_type = "Traditiional"
+  harvest_type = "Traditional"
 )
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -710,7 +712,7 @@ sakpen_h_tidy <- tibble(
   year = 2014L,
   gear = NA,
   harvest = 12209,
-  fishery = "Sport",
+  fishery = "Commercial",
   area = "AK Pen",
   harvest_type = NA
 )
@@ -757,19 +759,197 @@ rho_h_tidy <- bind_rows(
   bsai_h_tidy
 )
 
-
+# Join rho and paired harvest
 rho_h_join <- rho_h_tidy %>% 
   mutate(fishery = factor(x = fishery, levels = levels(harvest_tidy$Fishery))) %>% 
   mutate(area = factor(x = area, levels = levels(harvest_tidy$Area))) %>% 
   left_join(rho_tidy)
 
 
-rho_h_join %>% 
-  filter(area != "AK Pen") %>% 
-  group_by(year, fishery, area) %>% 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#### Map with stock comp harvest ####
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Join paired harvest with all harvest, take average across 2014-2016
+avg_rho_h_join <- rho_h_join %>% 
+  filter(area != "AK Pen") %>%  # drop AK Pen, only 1 year of stock comp, 2014
+  group_by(year, fishery, area) %>%  # summarize harvest across gear and harvest types
   summarise(harvest = sum(harvest)) %>% 
-  group_by(fishery, area) %>% 
+  group_by(fishery, area) %>%  # average harvest across years for each fishery and area
   summarize(avg_harvest = mean(harvest)) %>% 
   ungroup() %>% 
   rename(Fishery = fishery, Area = area) %>% 
-  right_join(avg_harvest_tidy, by = c())
+  right_join(avg_harvest_tidy) %>%  # join with all harvest
+  replace(is.na(.), 0) %>% 
+  mutate(harvest_no_stock = Harvest - avg_harvest)  # how much harvest doesn't have paired stock-specific data
+
+# Wide stock harvest
+rho_h_wide <- avg_rho_h_join %>% 
+  select(Fishery, Area, avg_harvest) %>% 
+  spread(Fishery, avg_harvest) %>% 
+  replace(is.na(.), 0)
+
+# Wide no stock harvest
+no_rho_h_wide <- avg_rho_h_join %>% 
+  select(Fishery, Area, harvest_no_stock) %>% 
+  spread(Fishery, harvest_no_stock) %>% 
+  replace(is.na(.), 0)
+
+rho_chinookharvest <- bind_cols(
+  rho_h_wide[, 1:2], no_rho_h_wide[, 2], 
+  rho_h_wide[, 3], no_rho_h_wide[, 3], 
+  rho_h_wide[, 4], no_rho_h_wide[, 4],
+  rho_h_wide[, 5], no_rho_h_wide[, 5])
+rho_chinookharvest$Total = rowSums(rho_chinookharvest[, -1])
+
+names(rho_chinookharvest) <- c("Area", "rho_Subsistence", "Subsistence", "rho_Commercial", "Commercial", "rho_Sport", "Sport", "rho_Bycatch", "Bycatch", "Total")
+
+# Save harvest data
+setwd("V:/Presentations/Science/AFS/AFS-Western-Anchorage-2018/Shedd SEAK Chinook/")
+write_csv(x = rho_chinookharvest, path = "data/rho_chinookharvest.csv")
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+png(filename = "figures/3_harvest_map_stockcomp.png", width = 8.5, height = 6.2, units = "in", res = 300)
+
+plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
+addLines(polys = rivers, col = "grey80", lwd = 2)
+addLines(polys = borders, col = "black", lwd = 2)
+addPolys(polys = StatAreasPBS.shp, col = "grey80", border = "black")
+addPolys(polys = DistrictsPBS.shp, col = "grey80", border = "black")
+
+max.rad <- 3
+pie.colors <- brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)]
+pie.colors <- c("black", pie.colors[1], "black", pie.colors[2], "black", pie.colors[3], "black", pie.colors[4])
+
+add.pie(z = as.numeric(rho_chinookharvest[1, 2:9]), x = -140, y = 56, radius = sqrt(as.numeric(rho_chinookharvest[1, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[2, 2:9]), x = -146, y = 59.75, radius = sqrt(as.numeric(rho_chinookharvest[2, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[3, 2:9]), x = -152, y = 60, radius = sqrt(as.numeric(rho_chinookharvest[3, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[4, 2:9]), x = -152, y = 57, radius = sqrt(as.numeric(rho_chinookharvest[4, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[5, 2:9]), x = -161, y = 54.5, radius = sqrt(as.numeric(rho_chinookharvest[5, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[6, 2:9]), x = -159, y = 58, radius = sqrt(as.numeric(rho_chinookharvest[6, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[7, 2:9]), x = -157, y = 61.5, radius = sqrt(as.numeric(rho_chinookharvest[7, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[8, 2:9]), x = -158, y = 64.5, radius = sqrt(as.numeric(rho_chinookharvest[8, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[9, 2:9]), x = -165, y = 64, radius = sqrt(as.numeric(rho_chinookharvest[9, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[10, 2:9]), x = -149, y = 55, radius = sqrt(as.numeric(rho_chinookharvest[10, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(rho_chinookharvest[11, 2:9]), x = -168, y = 57, radius = sqrt(as.numeric(rho_chinookharvest[11, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
+
+legend("topright", legend = c(levels(avg_harvest_tidy$Fishery), "Genetics"), fill = pie.colors[c(2, 4, 6, 8, 1)], cex = 1.8)
+
+dev.off()
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#### Map with SEAK stock comp harvest ####
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Join paired harvest with all harvest, take average across 2014-2016
+avg_seak_rho_h_join <- rho_h_join %>% 
+  filter(area != "AK Pen") %>%  # drop AK Pen, only 1 year of stock comp, 2014
+  mutate(seak_harvest = rho * harvest) %>%  # how many seak chinook?
+  group_by(year, fishery, area) %>%  # summarize harvest across gear and harvest types
+  summarise(harvest = sum(harvest), seak_harvest = sum(seak_harvest)) %>% 
+  group_by(fishery, area) %>%  # average harvest across years for each fishery and area
+  summarize(avg_harvest = mean(harvest), avg_seak_harvest = mean(seak_harvest)) %>% 
+  ungroup() %>% 
+  rename(Fishery = fishery, Area = area) %>% 
+  right_join(avg_harvest_tidy) %>%  # join with all harvest
+  replace(is.na(.), 0) %>% 
+  mutate(harvest_no_stock = Harvest - avg_harvest) %>%  # how much harvest doesn't have paired stock-specific data
+  mutate(harvest_not_seak = avg_harvest - avg_seak_harvest) %>% 
+  select(Fishery, Area, avg_seak_harvest, harvest_not_seak, harvest_no_stock, Harvest)
+save_objects(objects = "avg_seak_rho_h_join", path = "data/")
+
+# Wide seak stock harvest
+seak_rho_h_wide <- avg_seak_rho_h_join %>% 
+  select(Fishery, Area, avg_seak_harvest) %>% 
+  spread(Fishery, avg_seak_harvest) %>% 
+  replace(is.na(.), 0)
+
+# Wide not seak stock harvest
+not_seak_rho_h_wide <- avg_seak_rho_h_join %>% 
+  select(Fishery, Area, harvest_not_seak) %>% 
+  spread(Fishery, harvest_not_seak) %>% 
+  replace(is.na(.), 0)
+
+# Wide no stock stock harvest
+no_rho_h_wide <- avg_seak_rho_h_join %>% 
+  select(Fishery, Area, harvest_no_stock) %>% 
+  spread(Fishery, harvest_no_stock) %>% 
+  replace(is.na(.), 0)
+
+
+seak_rho_chinookharvest <- bind_cols(
+  seak_rho_h_wide[, 1:2], not_seak_rho_h_wide[, 2], no_rho_h_wide[, 2], 
+  seak_rho_h_wide[, 3], not_seak_rho_h_wide[, 3], no_rho_h_wide[, 3], 
+  seak_rho_h_wide[, 4], not_seak_rho_h_wide[, 4], no_rho_h_wide[, 4],
+  seak_rho_h_wide[, 5], not_seak_rho_h_wide[, 5], no_rho_h_wide[, 5])
+seak_rho_chinookharvest$Total = rowSums(seak_rho_chinookharvest[, -1])
+
+seak_rho_chinookharvest$Total == chinookharvest$Total
+
+names(seak_rho_chinookharvest) <- c("Area", "seak_rho_Subsistence", "not_seak_rho_Subsistence", "Subsistence", "seak_rho_Commercial", "not_seak_rho_Commercial", "Commercial", "seak_rho_Sport", "not_seak_rho_Sport", "Sport", "seak_rho_Bycatch", "not_seak_rho_Bycatch", "Bycatch", "Total")
+
+# Save harvest data
+setwd("V:/Presentations/Science/AFS/AFS-Western-Anchorage-2018/Shedd SEAK Chinook/")
+write_csv(x = seak_rho_chinookharvest, path = "data/seak_rho_chinookharvest.csv")
+
+# Randy's SEAK color (hatchery + wild)
+seak_color <- rgb(red = 155, green = 187, blue = 89, maxColorValue = 255)
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+png(filename = "figures/4_harvest_map_stockcomp_seak.png", width = 8.5, height = 6.2, units = "in", res = 300)
+
+plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
+addLines(polys = rivers, col = "grey80", lwd = 2)
+addLines(polys = borders, col = "black", lwd = 2)
+addPolys(polys = StatAreasPBS.shp, col = "grey80", border = "black")
+addPolys(polys = DistrictsPBS.shp, col = "grey80", border = "black")
+
+max.rad <- 3
+pie.colors <- brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)]
+pie.colors <- c(seak_color, "black", pie.colors[1], seak_color, "black", pie.colors[2], seak_color, "black", pie.colors[3], seak_color, "black", pie.colors[4])
+
+add.pie(z = as.numeric(seak_rho_chinookharvest[1, 2:13]), x = -140, y = 56, radius = sqrt(as.numeric(seak_rho_chinookharvest[1, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[2, 2:13]), x = -146, y = 59.75, radius = sqrt(as.numeric(seak_rho_chinookharvest[2, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[3, 2:13]), x = -152, y = 60, radius = sqrt(as.numeric(seak_rho_chinookharvest[3, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[4, 2:13]), x = -152, y = 57, radius = sqrt(as.numeric(seak_rho_chinookharvest[4, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[5, 2:13]), x = -161, y = 54.5, radius = sqrt(as.numeric(seak_rho_chinookharvest[5, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[6, 2:13]), x = -159, y = 58, radius = sqrt(as.numeric(seak_rho_chinookharvest[6, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[7, 2:13]), x = -157, y = 61.5, radius = sqrt(as.numeric(seak_rho_chinookharvest[7, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[8, 2:13]), x = -158, y = 64.5, radius = sqrt(as.numeric(seak_rho_chinookharvest[8, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[9, 2:13]), x = -165, y = 64, radius = sqrt(as.numeric(seak_rho_chinookharvest[9, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[10, 2:13]), x = -149, y = 55, radius = sqrt(as.numeric(seak_rho_chinookharvest[10, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+add.pie(z = as.numeric(seak_rho_chinookharvest[11, 2:13]), x = -168, y = 57, radius = sqrt(as.numeric(seak_rho_chinookharvest[11, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
+
+legend("topright", legend = c(levels(avg_harvest_tidy$Fishery), "Genetics", "SEAK"), fill = c(brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)], "black", seak_color), cex = 1.8)
+
+dev.off()
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+png(filename = "figures/5_harvest_barplot_stockcomp_seak.png", width = 8.5, height = 6.2, units = "in", res = 300)
+
+avg_seak_rho_h_join %>% 
+  mutate(avg_seak_harvest = avg_seak_harvest / 1000) %>% 
+  ggplot(aes(x = Area, y = avg_seak_harvest, fill = Fishery)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        text = element_text(size = 20, colour = "white"),
+        plot.background = element_rect(fill = "black", colour = "black"),
+        axis.text = element_text(colour = "white"),
+        axis.ticks = element_line(colour = "white"),
+        axis.line = element_line(colour = "white"),
+        legend.background = element_rect(fill = "black"),
+        legend.key = element_rect(colour = "black"),
+        panel.background = element_rect(fill = "grey30")) +
+  ylab("Average Harvest of SEAK\nChinook Salmon (1000's)") +
+  scale_fill_manual(values = brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)])
+
+dev.off()
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+avg_seak_rho_h_join %>% 
+  mutate(freq = avg_seak_harvest / sum(avg_seak_harvest)) %>% 
+  arrange(desc(freq))
