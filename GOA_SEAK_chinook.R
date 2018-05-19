@@ -959,3 +959,5 @@ dev.off()
 avg_seak_rho_h_join %>% 
   mutate(freq = avg_seak_harvest / sum(avg_seak_harvest) * 100) %>% 
   arrange(desc(freq))
+
+save.image("GOA_SEAK_chinook.RData")
