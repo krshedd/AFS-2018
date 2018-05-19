@@ -185,8 +185,6 @@ while(!require(plotly)) {install.packages("plotly")}
 while(!require(PBSmapping)) {install.packages("PBSmapping")}
 while(!require(devEMF)) {install.packages("devEMF")}
 
-par(bg = "black", col.lab = "white")
-
 
 setwd("V:/Analysis/1_SEAK/Sockeye/Mixture/Harvest Data")
 
@@ -228,6 +226,8 @@ dir.create("figures")
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 png(filename = "figures/2_harvest_map.png", width = 8.5, height = 6.2, units = "in", res = 300)
 
+par(bg = "black", col.lab = "white", col.axis = "white")
+
 plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
 addLines(polys = rivers, col = "grey80", lwd = 2)
 addLines(polys = borders, col = "black", lwd = 2)
@@ -251,13 +251,15 @@ add.pie(z = as.numeric(chinookharvest[9, 2:5]), x = -165, y = 64, radius = sqrt(
 add.pie(z = as.numeric(chinookharvest[10, 2:5]), x = -149, y = 55, radius = sqrt(as.numeric(chinookharvest[10, 6]/max(chinookharvest[, 6]))) * max.rad, labels = NA, col = pie.colors)
 add.pie(z = as.numeric(chinookharvest[11, 2:5]), x = -168, y = 57, radius = sqrt(as.numeric(chinookharvest[11, 6]/max(chinookharvest[, 6]))) * max.rad, labels = NA, col = pie.colors)
 
-legend("topright", legend = levels(avg_harvest_tidy$Fishery), fill = pie.colors, cex = 1.8)
+legend("topright", legend = levels(avg_harvest_tidy$Fishery), fill = pie.colors, cex = 1.8, bg = "white")
 
 dev.off()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-png(filename = "figures/harvest_map_blank.png", width = 8.5, height = 6.2, units = "in", res = 300)
+png(filename = "figures/1_harvest_map_blank.png", width = 8.5, height = 6.2, units = "in", res = 300)
+
+par(bg = "black", col.lab = "white", col.axis = "white")
 
 plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
 addLines(polys = rivers, col = "grey80", lwd = 2)
@@ -812,6 +814,8 @@ write_csv(x = rho_chinookharvest, path = "data/rho_chinookharvest.csv")
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 png(filename = "figures/3_harvest_map_stockcomp.png", width = 8.5, height = 6.2, units = "in", res = 300)
 
+par(bg = "black", col.lab = "white", col.axis = "white")
+
 plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
 addLines(polys = rivers, col = "grey80", lwd = 2)
 addLines(polys = borders, col = "black", lwd = 2)
@@ -834,7 +838,7 @@ add.pie(z = as.numeric(rho_chinookharvest[9, 2:9]), x = -165, y = 64, radius = s
 add.pie(z = as.numeric(rho_chinookharvest[10, 2:9]), x = -149, y = 55, radius = sqrt(as.numeric(rho_chinookharvest[10, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
 add.pie(z = as.numeric(rho_chinookharvest[11, 2:9]), x = -168, y = 57, radius = sqrt(as.numeric(rho_chinookharvest[11, 10]/max(rho_chinookharvest[, 10]))) * max.rad, labels = NA, col = pie.colors)
 
-legend("topright", legend = c(levels(avg_harvest_tidy$Fishery), "Genetics"), fill = pie.colors[c(2, 4, 6, 8, 1)], cex = 1.8)
+legend("topright", legend = c(levels(avg_harvest_tidy$Fishery), "Genetics"), fill = pie.colors[c(2, 4, 6, 8, 1)], cex = 1.8, bg = "white")
 
 dev.off()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -900,6 +904,8 @@ seak_color <- rgb(red = 155, green = 187, blue = 89, maxColorValue = 255)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 png(filename = "figures/4_harvest_map_stockcomp_seak.png", width = 8.5, height = 6.2, units = "in", res = 300)
 
+par(bg = "black", col.lab = "white", col.axis = "white")
+
 plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
 addLines(polys = rivers, col = "grey80", lwd = 2)
 addLines(polys = borders, col = "black", lwd = 2)
@@ -922,7 +928,7 @@ add.pie(z = as.numeric(seak_rho_chinookharvest[9, 2:13]), x = -165, y = 64, radi
 add.pie(z = as.numeric(seak_rho_chinookharvest[10, 2:13]), x = -149, y = 55, radius = sqrt(as.numeric(seak_rho_chinookharvest[10, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
 add.pie(z = as.numeric(seak_rho_chinookharvest[11, 2:13]), x = -168, y = 57, radius = sqrt(as.numeric(seak_rho_chinookharvest[11, 14]/max(seak_rho_chinookharvest[, 14]))) * max.rad, labels = NA, col = pie.colors)
 
-legend("topright", legend = c(levels(avg_harvest_tidy$Fishery), "Genetics", "SEAK"), fill = c(brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)], "black", seak_color), cex = 1.8)
+legend("topright", legend = c(levels(avg_harvest_tidy$Fishery), "Genetics", "SEAK"), fill = c(brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)], "black", seak_color), cex = 1.8, bg = "white")
 
 dev.off()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -934,7 +940,7 @@ png(filename = "figures/5_harvest_barplot_stockcomp_seak.png", width = 8.5, heig
 avg_seak_rho_h_join %>% 
   mutate(avg_seak_harvest = avg_seak_harvest / 1000) %>% 
   ggplot(aes(x = Area, y = avg_seak_harvest, fill = Fishery)) +
-  geom_col() +
+  geom_bar(position = 'stack', stat = 'identity') +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
         text = element_text(size = 20, colour = "white"),
         plot.background = element_rect(fill = "black", colour = "black"),
@@ -951,5 +957,5 @@ dev.off()
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 avg_seak_rho_h_join %>% 
-  mutate(freq = avg_seak_harvest / sum(avg_seak_harvest)) %>% 
+  mutate(freq = avg_seak_harvest / sum(avg_seak_harvest) * 100) %>% 
   arrange(desc(freq))
