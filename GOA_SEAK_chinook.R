@@ -675,6 +675,30 @@ LCI_h_tidy <- tibble(
 )
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+## Upper Cook Inlet comm and subs
+# Add Andy's UCI data quickly <V:\Presentations\Science\AFS\AFS-Western-Anchorage-2018\Shedd SEAK Chinook\data\harvest\Cook Inlet commercial and subsistence Chinook salmon harvest represented 2014-2016.xlsx>
+uci_subs = c(896, 1070, 1030)
+uci_comm = c(3788, 9207, 8906)
+
+UCI_subs_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = NA,
+  harvest = uci_subs,
+  fishery = "Subsistence",
+  area = "Cook Inlet",
+  harvest_type = NA
+)
+
+UCI_comm_h_tidy <- tibble(
+  year = 2014:2016,
+  gear = NA,
+  harvest = uci_comm,
+  fishery = "Commercial",
+  area = "Cook Inlet",
+  harvest_type = NA
+)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ## Kodiak commercial
 # From KMA comm report
 kod_comm_harvest <- setNames(c(6867, 7447, 6791), nm = 2014:2016)
@@ -754,6 +778,8 @@ rho_h_tidy <- bind_rows(
   drift_h_tidy,
   cr_h_tidy,
   LCI_h_tidy,
+  UCI_subs_h_tidy,
+  UCI_comm_h_tidy,
   kod_comm_h_tidy,
   kod_sport_h_tidy,
   sakpen_h_tidy,
@@ -765,7 +791,9 @@ rho_h_tidy <- bind_rows(
 rho_h_join <- rho_h_tidy %>% 
   mutate(fishery = factor(x = fishery, levels = levels(harvest_tidy$Fishery))) %>% 
   mutate(area = factor(x = area, levels = levels(harvest_tidy$Area))) %>% 
-  left_join(rho_tidy)
+  left_join(rho_tidy) %>% 
+  mutate(rho = replace_na(rho, 0)) %>%  # assume that UCI comm and subs rho = 0
+  mutate(RG = replace_na(RG, "SEAK/TBR"))  # assume that UCI comm and subs SEAK/TBR rho = 0
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -959,5 +987,72 @@ dev.off()
 avg_seak_rho_h_join %>% 
   mutate(freq = avg_seak_harvest / sum(avg_seak_harvest) * 100) %>% 
   arrange(desc(freq))
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Average stock comp for each area
+
+# map with bar charts
+pie.colors <- brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)]
+
+area_lat_long <- data.frame(
+  area = factor(x = levels(rho_h_join$area), levels = levels(rho_h_join$area)),
+  long = c(-140, -146, -152, -152, -161, -159, -157, -158, -165, -149, -168),
+  lat = c(56, 59.75, 60, 57, 54.5, 58, 61.5, 64.5, 64, 55, 57))
+
+rho_h_join_lat_long <- rho_h_join %>% 
+  group_by(area, fishery, gear, harvest_type) %>%  # summarize harvest across gear and harvest types
+  summarize(avg_rho = mean(rho)) %>% 
+  mutate(col = recode(fishery, Subsistence = pie.colors[1], Commercial = pie.colors[2], Sport = pie.colors[3], Bycatch = pie.colors[4])) %>% 
+  left_join(area_lat_long)
+
+
+# png(filename = "figures/6_stockcomp_map_seak.png", width = 8.5, height = 6.2, units = "in", res = 300)
+
+par(bg = "black", col.lab = "white", col.axis = "white")
+
+plotMap(land, col = "white", bg = "grey80", plt = c(0.07, .99, 0.09, 0.99), cex.lab = 1.5, cex.axis = 1.5)
+addLines(polys = rivers, col = "grey80", lwd = 2)
+addLines(polys = borders, col = "black", lwd = 2)
+addPolys(polys = StatAreasPBS.shp, col = "grey80", border = "black")
+addPolys(polys = DistrictsPBS.shp, col = "grey80", border = "black")
+
+
+# draw.xy(x = rep(-140, 4), y = rep(56, 4), xx = 1:4, yy = c(1, 1, 0.123, 0.256), type = "h", width = 3, height = 3, col = brewer.pal(n = 4, name = "Set3")[c(3, 3, 3, 2)], lwd = 8, bty = "n", bg = "black", ylim = c(0, 1))
+draw.xy(x = rho_h_join_lat_long$long, y = rho_h_join_lat_long$lat, xx = c(1:4, 1, 1:3, 1:2, 1, 1, 1), yy = rho_h_join_lat_long$avg_rho, col = rho_h_join_lat_long$col, width = 5, height = 3, lwd = 16, bg = "black", ylim = c(0, 1), type = "h", border = NA)
+
+legend("topright", legend = levels(avg_harvest_tidy$Fishery), fill = brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)], cex = 1.8, bg = "white")
+
+
+# ggplot?
+rho_h_join_lat_long %>% 
+  ggplot(aes(x = area, y = avg_rho, fill = fishery)) +
+  geom_bar(position = "dodge", width = 0.5, stat = "identity")
+
+png(filename = "figures/6_stockcomp_map_seak.png", width = 8.5, height = 6.2, units = "in", res = 300)
+
+avg_seak_rho_h_join %>% 
+  mutate(seak_rho = avg_seak_harvest / Harvest) %>% 
+  ggplot(aes(x = Area, y = seak_rho * 100, fill = Fishery)) +
+  geom_bar(position = 'dodge', stat = 'identity') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        text = element_text(size = 20, colour = "white"),
+        plot.background = element_rect(fill = "black", colour = "black"),
+        axis.text = element_text(colour = "white"),
+        axis.ticks = element_line(colour = "white"),
+        axis.line = element_line(colour = "white"),
+        legend.background = element_rect(fill = "black"),
+        legend.key = element_rect(colour = "black"),
+        panel.background = element_rect(fill = "grey30")) +
+  ylim(0, 100) +
+  ylab("Average Percent of\nSEAK Chinook Salmon") +
+  scale_fill_manual(values = brewer.pal(n = 4, name = "Set3")[c(1, 3, 2, 4)])
+
+dev.off()
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+write_csv(x = avg_seak_rho_h_join, path = "data/avg_seak_rho_h_join.csv")
+
+
+
 
 save.image("GOA_SEAK_chinook.RData")
